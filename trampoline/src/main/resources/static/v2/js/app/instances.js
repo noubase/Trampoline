@@ -225,13 +225,13 @@ function showMetrics(instanceId, name, port){
                 metricsCharts.config.data = {
                                               labels: dates,
                                               datasets: [{
-                                                  label: "Memory Free KB",
+                                                  label: "Memory Free MB",
                                                   backgroundColor: 'rgba(255, 99, 132, 0.2)',
                                                   borderColor: 'rgba(255, 99, 132, 1)',
                                                   data: dataMemoryFree,
                                               },
                                               {
-                                                  label: "Heap Used KB",
+                                                  label: "Heap Used MB",
                                                   backgroundColor: 'rgba(54, 162, 235, 0.2)',
                                                   borderColor: 'rgba(54, 162, 235, 1)',
                                                   data: usedHeapKB,

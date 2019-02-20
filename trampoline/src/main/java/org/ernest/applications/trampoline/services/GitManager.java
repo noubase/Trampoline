@@ -1,5 +1,9 @@
 package org.ernest.applications.trampoline.services;
 
+import com.jcraft.jsch.JSch;
+import com.jcraft.jsch.JSchException;
+import com.jcraft.jsch.Session;
+import com.jcraft.jsch.UserInfo;
 import org.eclipse.jgit.api.CloneCommand;
 import org.eclipse.jgit.api.CreateBranchCommand;
 import org.eclipse.jgit.api.Git;
@@ -8,15 +12,7 @@ import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.RefAlreadyExistsException;
 import org.eclipse.jgit.errors.UnsupportedCredentialItem;
 import org.eclipse.jgit.lib.Ref;
-import org.eclipse.jgit.transport.CredentialItem;
-import org.eclipse.jgit.transport.CredentialsProvider;
-import org.eclipse.jgit.transport.CredentialsProviderUserInfo;
-import org.eclipse.jgit.transport.JschConfigSessionFactory;
-import org.eclipse.jgit.transport.OpenSshConfig;
-import org.eclipse.jgit.transport.SshSessionFactory;
-import org.eclipse.jgit.transport.SshTransport;
-import org.eclipse.jgit.transport.URIish;
-import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
+import org.eclipse.jgit.transport.*;
 import org.eclipse.jgit.util.FS;
 import org.ernest.applications.trampoline.entities.Ecosystem;
 import org.ernest.applications.trampoline.entities.GitCredentials;
@@ -31,21 +27,20 @@ import java.io.File;
 import java.io.IOException;
 import java.util.stream.Collectors;
 
-import com.jcraft.jsch.JSch;
-import com.jcraft.jsch.JSchException;
-import com.jcraft.jsch.Session;
-import com.jcraft.jsch.UserInfo;
-
 @Component
 public class GitManager {
 
     private final Logger log = LoggerFactory.getLogger(GitManager.class);
 
-    @Autowired
-    EcosystemManager ecosystemManager;
+    private final EcosystemManager ecosystemManager;
+
+    private final EncryptService encryptService;
 
     @Autowired
-    EncryptService encryptService;
+    public GitManager(EcosystemManager ecosystemManager, EncryptService encryptService) {
+        this.ecosystemManager = ecosystemManager;
+        this.encryptService = encryptService;
+    }
 
     public MicroserviceGitInfo getMicroseriviceBranches(String microserviceId) throws IOException, GitAPIException {
         log.info("Reading GIT Branches for microservice id: [{}]", microserviceId);
@@ -169,10 +164,18 @@ public class GitManager {
 
                         @Override
                         public boolean get(URIish uri, CredentialItem... items) throws UnsupportedCredentialItem {
-                            for (CredentialItem item: items) {
+                            boolean result = true;
+                            for (CredentialItem item : items) {
+                                if (item instanceof CredentialItem.YesNoType) {
+                                    CredentialItem.YesNoType yesNoType = (CredentialItem.YesNoType) item;
+                                    log.error("Yes or no [{}]", yesNoType.getPromptText());
+                                    result = true;
+                                    yesNoType.setValue(true);
+                                    continue;
+                                }
                                 ((CredentialItem.StringType) item).setValue(encryptService.decrypt(sshSettings.getSshKeyPassword()));
                             }
-                            return true;
+                            return result;
                         }
                     };
                     UserInfo userInfo = new CredentialsProviderUserInfo(session, provider);

@@ -12,7 +12,10 @@ public class ScriptContentsProvider {
     }
 
     public static String getMavenUnix(String pomLocation){
-        return "export M2_HOME=$1; export PATH=$PATH:$2; cd " + pomLocation + "; mvn spring-boot:run -Dserver.port=$3 -Dendpoints.shutdown.enabled=true -Dmanagement.security.enabled=false -Dmanagement.info.git.mode=full -Dmanagement.endpoints.web.exposure.include=* -Dmanagement.endpoint.shutdown.enabled=true $4";
+        return "export M2_HOME=$1; export PATH=$PATH:$2;\r\n" +
+                "cd " + pomLocation + ";\n" +
+                "ALL_OPTIONS=\"-Dserver.port=$3 -Dendpoints.shutdown.enabled=true -Dmanagement.security.enabled=false -Dmanagement.info.git.mode=full -Dmanagement.endpoints.web.exposure.include=* -Dmanagement.endpoint.shutdown.enabled=true $4\";\n" +
+                " mvn spring-boot:run ${ALL_OPTIONS}";
     }
 
     public static String getGradleUnix(String pomLocation){

@@ -101,8 +101,9 @@ public class EcosystemManager {
 		Microservice microservice = ecosystem.getMicroservices().stream().filter(m -> m.getId().equals(id)).findAny().get();
 		Thread.sleep(startingDelay*1000);
 		log.info("Launching script to start instances id: [{}]", id);
-		fileManager.runScript(microservice, ecosystem.getMavenBinaryLocation(), ecosystem.getMavenHomeLocation(), port, vmArguments);
-		
+		String escaped = vmArguments.replaceAll("\"", "\\\\\"");
+		fileManager.runScript(microservice, ecosystem.getMavenBinaryLocation(), ecosystem.getMavenHomeLocation(), port, escaped);
+
 		Instance instance = new Instance();
 		instance.setId(UUID.randomUUID().toString());
 		instance.setIp("127.0.0.1");

@@ -15,8 +15,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
-import java.net.ConnectException;
-import java.net.SocketException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -31,15 +29,15 @@ public class MetricsCollector {
 
     private Map<String, Queue<Metrics>> metricsMap = new HashMap<>();
 
-    @Scheduled(fixedDelay=30000)
+    @Scheduled(fixedDelay = 30000)
     public void collectMetrics() throws JSONException, InterruptedException, CreatingSettingsFolderException, ReadingEcosystemException {
 
-        ecosystemManager.getEcosystem().getInstances().forEach(instance ->{
+        ecosystemManager.getEcosystem().getInstances().forEach(instance -> {
             try {
                 Metrics metrics;
                 try {
                     metrics = buildMetricsFromJsonResponseV1x(instance);
-                }catch (Exception e){
+                } catch (Exception e) {
                     metrics = buildMetricsFromJsonResponseV2x(instance);
                 }
 
@@ -50,15 +48,15 @@ public class MetricsCollector {
                     queue.add(metrics);
                     metricsMap.put(instance.getId(), queue);
                 }
-            }catch (Exception  e){
-                log.error("Not possible to retrieve metrics for instance: ["+instance.getId()+"] hosted on port: ["+instance.getPort()+"]");
+            } catch (Exception e) {
+                log.error("Not possible to retrieve metrics for instance: [" + instance.getId() + "] hosted on port: [" + instance.getPort() + "]");
             }
         });
 
         removeNotActiveInstances();
     }
 
-    public Queue<Metrics> getInstanceMetrics(String id){
+    public Queue<Metrics> getInstanceMetrics(String id) {
         return metricsMap.get(id);
     }
 
@@ -74,7 +72,7 @@ public class MetricsCollector {
             return true;
         }).collect(Collectors.toList());
 
-        idsToBeDeleted.stream().forEach(id-> metricsMap.remove(id));
+        idsToBeDeleted.stream().forEach(id -> metricsMap.remove(id));
     }
 
     private Metrics buildMetricsFromJsonResponseV1x(Instance instance) throws JSONException {
@@ -98,19 +96,20 @@ public class MetricsCollector {
         log.info("Reading metrics Spring Boot 2.x for instance id: [{}]", instance.getId());
 
         Metrics metrics = new Metrics();
-        metrics.setTotalMemoryKB(getValueMetric(instance, "jvm.memory.max"));
+        metrics.setTotalMemoryKB(getValueMetric(instance, "jvm.memory.max", 1024));
         metrics.setHeapKB(0L);
         metrics.setInitHeapKB(0L);
-        metrics.setUsedHeapKB(getValueMetric(instance, "jvm.memory.used"));
+        metrics.setUsedHeapKB(getValueMetric(instance, "jvm.memory.used", 1024));
         metrics.setFreeMemoryKB(metrics.getTotalMemoryKB() - metrics.getUsedHeapKB());
         metrics.setDate(new SimpleDateFormat("HH:mm:ss").format(new Date()));
 
         return metrics;
     }
 
-    private Long getValueMetric(Instance instance, String key) throws JSONException {
-        JSONObject metricsJson = new JSONObject(new RestTemplate().getForObject("http://"+instance.getIp()+":" + instance.getPort() + "/" + instance.getActuatorPrefix() + "/metrics/"+key, String.class));
-        return Long.valueOf(metricsJson.getJSONArray("measurements").getJSONObject(0).getInt("value"));
+    private Long getValueMetric(Instance instance, String key, int divide) throws JSONException {
+        JSONObject metricsJson = new JSONObject(new RestTemplate().getForObject("http://" + instance.getIp() + ":" + instance.getPort() + "/" + instance.getActuatorPrefix() + "/metrics/" + key, String.class));
+        int i = metricsJson.getJSONArray("measurements").getJSONObject(0).getInt("value");
+        return Math.round((double) i / divide);
     }
 }
 
