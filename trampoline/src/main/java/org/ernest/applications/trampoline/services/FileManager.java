@@ -3,6 +3,7 @@ package org.ernest.applications.trampoline.services;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.ernest.applications.trampoline.entities.BuildTools;
 import org.ernest.applications.trampoline.entities.Ecosystem;
 import org.ernest.applications.trampoline.entities.Microservice;
@@ -144,7 +145,15 @@ public class FileManager {
             } else {
                 if (microservice.getBuildTool().equals(BuildTools.MAVEN)) {
                     mavenBinaryLocation = (mavenBinaryLocation != null && mavenBinaryLocation.trim().length() > 0) ? mavenBinaryLocation : mavenHomeLocation + "/bin";
-                    new ProcessBuilder("sh", getSettingsFolder() + "/" + microservice.getId() + ".sh", mavenHomeLocation, mavenBinaryLocation, port, vmArguments).start();
+                    Process process = new ProcessBuilder("sh", getSettingsFolder() + "/" + microservice.getId() + ".sh", mavenHomeLocation, mavenBinaryLocation, port, vmArguments).start();
+
+//                    try {
+//                        byte[] bytes = IOUtils.toByteArray(process.getInputStream());
+//                        FileUtils.writeByteArrayToFile(new File("install.log"), bytes);
+//                    } catch (Exception e) {
+//                        log.warn("Failed [{}]", e);
+//                    }
+
                 } else {
                     Runtime.getRuntime().exec("chmod 777 " + microservice.getPomLocation() + "//gradlew");
                     new ProcessBuilder("sh", getSettingsFolder() + "/" + microservice.getId() + ".sh", port, VMParser.toUnixEnviromentVariables(vmArguments)).start();

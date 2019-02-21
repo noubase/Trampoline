@@ -91,14 +91,14 @@ public class EcosystemManager {
     }
 
     public void startInstance(String id, String port, String vmArguments, Integer startingDelay) throws CreatingSettingsFolderException, ReadingEcosystemException, RunningMicroserviceScriptException, SavingEcosystemException, InterruptedException {
-        log.info("Starting instances id: [{}] port: [{}] vmArguments: [{}] startingDelay: [{}]", id, port, vmArguments, startingDelay);
         Ecosystem ecosystem = fileManager.getEcosystem();
 
-        Microservice microservice = ecosystem.getMicroservices().stream().filter(m -> m.getId().equals(id)).findAny().get();
-        Thread.sleep(startingDelay * 1000);
         log.info("Launching script to start instances id: [{}]", id);
-        String escaped = vmArguments.replaceAll("\"", "\\\\\"");
-        fileManager.runScript(microservice, ecosystem.getMavenBinaryLocation(), ecosystem.getMavenHomeLocation(), port, escaped);
+        Microservice microservice = ecosystem.getMicroservices().stream().filter(m -> m.getId().equals(id)).findAny()
+                .orElseThrow(() -> new IllegalArgumentException(String.format("Service with [%s] not found", id)));
+        Thread.sleep(startingDelay * 1000);
+        log.info("Starting instances id: [{}] port: [{}] vmArguments: [{}] startingDelay: [{}]", id, port, vmArguments, startingDelay);
+        fileManager.runScript(microservice, ecosystem.getMavenBinaryLocation(), ecosystem.getMavenHomeLocation(), port, vmArguments);
 
         Instance instance = new Instance();
         instance.setId(UUID.randomUUID().toString());
