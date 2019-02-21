@@ -101,7 +101,7 @@ public class InstancesController {
 	public boolean checkPort(@RequestParam(value="port") int port) throws CreatingSettingsFolderException, ReadingEcosystemException {
 		boolean declaredInstanceOnPort = ecosystemManager.getEcosystem().getInstances().stream().anyMatch(i -> i.getPort().equals(String.valueOf(port)));
 
-		return declaredInstanceOnPort == false ? PortsChecker.available(port) : false;
+		return !declaredInstanceOnPort && PortsChecker.available(port);
 	}
 
 	@RequestMapping(value= "/startgroup", method = RequestMethod.POST)
