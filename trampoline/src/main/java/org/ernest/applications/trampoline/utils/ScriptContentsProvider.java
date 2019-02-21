@@ -14,7 +14,8 @@ public class ScriptContentsProvider {
     public static String getMavenUnix(String pomLocation){
         return "export M2_HOME=$1; export PATH=$PATH:$2; \r\n" +
                 "cd " + pomLocation + "; \r\n" +
-                " mvn spring-boot:run -Drun.jvmArguments=\"-Xmx96m -Xms96m\" -Dmaven.test.skip=true -Dserver.port=$3 -Dendpoints.shutdown.enabled=true -Dmanagement.security.enabled=false -Dmanagement.info.git.mode=full -Dmanagement.endpoints.web.exposure.include=* -Dmanagement.endpoint.shutdown.enabled=true $4";
+                //" mvn spring-boot:run -Drun.jvmArguments=\"-Xmx96m -Xms96m\" -Dmaven.test.skip=true -Dserver.port=$3 -Dendpoints.shutdown.enabled=true -Dmanagement.security.enabled=false -Dmanagement.info.git.mode=full -Dmanagement.endpoints.web.exposure.include=* -Dmanagement.endpoint.shutdown.enabled=true $4";
+                " mvn spring-boot:run -Dmaven.test.skip=true -Dserver.port=$3 -Dendpoints.shutdown.enabled=true -Dmanagement.security.enabled=false -Dmanagement.info.git.mode=full -Dmanagement.endpoints.web.exposure.include=* -Dmanagement.endpoint.shutdown.enabled=true $4";
     }
 
     public static String getGradleUnix(String pomLocation){
