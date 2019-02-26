@@ -16,7 +16,7 @@ import org.eclipse.jgit.transport.*;
 import org.eclipse.jgit.util.FS;
 import org.ernest.applications.trampoline.entities.Ecosystem;
 import org.ernest.applications.trampoline.entities.GitCredentials;
-import org.ernest.applications.trampoline.entities.Microservice;
+import org.ernest.applications.trampoline.entities.MicroService;
 import org.ernest.applications.trampoline.entities.MicroserviceGitInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,7 +47,7 @@ public class GitManager {
         MicroserviceGitInfo microserviceGitInfo = new MicroserviceGitInfo();
 
         Ecosystem ecosystem = ecosystemManager.getEcosystem();
-        Microservice microservice = ecosystem.getMicroservices().stream().filter(m -> m.getId().equals(microserviceId)).findAny().get();
+        MicroService microservice = ecosystem.getMicroservices().stream().filter(m -> m.getId().equals(microserviceId)).findAny().get();
 
         Git git = Git.open(new java.io.File(microservice.getGitLocation()));
         if (ecosystem.getGitCredentials().getHttpsSettings() != null) {
@@ -71,7 +71,7 @@ public class GitManager {
     public void checkoutAndPull(String microserviceId, String branchName) throws IOException, GitAPIException {
         log.info("Checkout and Pulling code for microservice id: [{}] branchName: [{}]", microserviceId, branchName);
         Ecosystem ecosystem = ecosystemManager.getEcosystem();
-        Microservice microservice = ecosystem.getMicroservices().stream().filter(m -> m.getId().equals(microserviceId)).findAny().get();
+        MicroService microservice = ecosystem.getMicroservices().stream().filter(m -> m.getId().equals(microserviceId)).findAny().get();
 
         branchName = branchName.replaceAll("refs/remotes/origin/", "");
         branchName = branchName.replaceAll("refs/heads/", "");

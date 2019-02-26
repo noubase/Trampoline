@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.text.SimpleDateFormat;
@@ -30,7 +31,7 @@ public class MetricsCollector {
     private Map<String, Queue<Metrics>> metricsMap = new HashMap<>();
 
     @Scheduled(fixedDelay = 30000)
-    public void collectMetrics() throws JSONException, InterruptedException, CreatingSettingsFolderException, ReadingEcosystemException {
+    public void collectMetrics() throws CreatingSettingsFolderException, ReadingEcosystemException {
 
         ecosystemManager.getEcosystem().getInstances().forEach(instance -> {
             try {
@@ -92,24 +93,32 @@ public class MetricsCollector {
         return metrics;
     }
 
-    private Metrics buildMetricsFromJsonResponseV2x(Instance instance) throws JSONException {
+    private Metrics buildMetricsFromJsonResponseV2x(Instance instance) {
         log.info("Reading metrics Spring Boot 2.x for instance id: [{}]", instance.getId());
 
         Metrics metrics = new Metrics();
-        metrics.setTotalMemoryKB(getValueMetric(instance, "jvm.memory.max", 1024));
+        metrics.setTotalMemoryKB(getValueMetric(instance, "jvm.memory.max", 1024 * 1024));
         metrics.setHeapKB(0L);
         metrics.setInitHeapKB(0L);
-        metrics.setUsedHeapKB(getValueMetric(instance, "jvm.memory.used", 1024));
+        metrics.setUsedHeapKB(getValueMetric(instance, "jvm.memory.used", 1024 * 1024));
         metrics.setFreeMemoryKB(metrics.getTotalMemoryKB() - metrics.getUsedHeapKB());
         metrics.setDate(new SimpleDateFormat("HH:mm:ss").format(new Date()));
 
         return metrics;
     }
 
-    private Long getValueMetric(Instance instance, String key, int divide) throws JSONException {
-        JSONObject metricsJson = new JSONObject(new RestTemplate().getForObject("http://" + instance.getIp() + ":" + instance.getPort() + "/" + instance.getActuatorPrefix() + "/metrics/" + key, String.class));
-        int i = metricsJson.getJSONArray("measurements").getJSONObject(0).getInt("value");
-        return Math.round((double) i / divide);
+    private Long getValueMetric(Instance instance, String key, int divide) {
+        String url = String.format("http://%s:%s/%s/metrics/%s", instance.getIp(), instance.getPort(), instance.getActuatorPrefix(), key);
+        try {
+            JSONObject metricsJson = new JSONObject(new RestTemplate().getForObject(url, String.class));
+            int i = metricsJson.getJSONArray("measurements").getJSONObject(0).getInt("value");
+            return Math.round((double) i / divide);
+        } catch (JSONException e) {
+            log.warn("Metrics JSON failed [{}]", e.getLocalizedMessage());
+        } catch (RestClientException e) {
+            log.warn("Metrics failed [{}]", e.getLocalizedMessage());
+        }
+        return 0L;
     }
 }
 

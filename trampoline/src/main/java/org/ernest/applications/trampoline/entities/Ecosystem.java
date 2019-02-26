@@ -1,79 +1,41 @@
 package org.ernest.applications.trampoline.entities;
 
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
+
 import java.util.ArrayList;
 import java.util.List;
 
+@Setter
+@Getter
+@ToString
 public class Ecosystem {
 
-	private GitCredentials gitCredentials;
-	private String mavenBinaryLocation;
-	private String mavenHomeLocation;
-	private List<Microservice> microservices;
-	private List<ExternalInstance> externalInstances;
-	private List<Instance> instances;
-	private List<MicroservicesGroup> microservicesGroups;
-	
-	public Ecosystem() {
-		microservices = new ArrayList<>();
-		instances = new ArrayList<>();
-		microservicesGroups = new ArrayList<>();
-		externalInstances = new ArrayList<>();
-		gitCredentials = new GitCredentials();
-	}
+    private GitCredentials gitCredentials;
 
-	public String getMavenBinaryLocation() {
-		return mavenBinaryLocation;
-	}
+    private String mavenBinaryLocation;
 
-	public void setMavenBinaryLocation(String mavenBinaryLocation) {
-		this.mavenBinaryLocation = mavenBinaryLocation;
-	}
+    private String mavenHomeLocation;
 
-	public String getMavenHomeLocation() {
-		return mavenHomeLocation;
-	}
+    private List<MicroService> microservices;
 
-	public void setMavenHomeLocation(String mavenHomeLocation) {
-		this.mavenHomeLocation = mavenHomeLocation;
-	}
+    private List<ExternalInstance> externalInstances;
 
-	public List<Microservice> getMicroservices() {
-		return microservices;
-	}
+    private List<Instance> instances;
 
-	public void setMicroservices(List<Microservice> microservices) {
-		this.microservices = microservices;
-	}
+    private List<MicroservicesGroup> microservicesGroups;
 
-	public List<Instance> getInstances() {
-		return instances;
-	}
+    public Ecosystem() {
+        microservices = new ArrayList<>();
+        instances = new ArrayList<>();
+        microservicesGroups = new ArrayList<>();
+        externalInstances = new ArrayList<>();
+        gitCredentials = new GitCredentials();
+    }
 
-	public void setInstances(List<Instance> instances) {
-		this.instances = instances;
-	}
+    public boolean removeInstance(String id) {
+        return instances.removeIf(i -> i.getId().equalsIgnoreCase(id));
+    }
 
-	public List<MicroservicesGroup> getMicroservicesGroups() {
-		return microservicesGroups;
-	}
-
-	public void setMicroservicesGroups(List<MicroservicesGroup> microservicesGroups) {
-		this.microservicesGroups = microservicesGroups;
-	}
-
-	public GitCredentials getGitCredentials() {
-		return gitCredentials;
-	}
-
-	public void setGitCredentials(GitCredentials gitCredentials) {
-		this.gitCredentials = gitCredentials;
-	}
-
-	public List<ExternalInstance> getExternalInstances() {
-		return externalInstances;
-	}
-
-	public void setExternalInstances(List<ExternalInstance> externalInstances) {
-		this.externalInstances = externalInstances;
-	}
 }

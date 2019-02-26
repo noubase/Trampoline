@@ -5,17 +5,17 @@ import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
-public class Instance {
+public class MicroService {
 
     private String id;
-
-    private String ip;
 
     private String name;
 
     private String pomLocation;
 
-    private String port;
+    private String gitLocation;
+
+    private Integer defaultPort;
 
     private String actuatorPrefix;
 
@@ -23,10 +23,8 @@ public class Instance {
 
     private String appArguments;
 
-    private String microserviceId;
+    private BuildTools buildTool;
 
-    public String buildActuatorUrl() {
-        return "http://" + getIp() + ":" + getPort() + "/" + getActuatorPrefix();
-    }
+    private Float version;
 
 }

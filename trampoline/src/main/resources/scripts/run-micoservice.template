@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+PORT=${2:-10000}
+VM_ARGUMENTS=${3:-""}
+APP_ARGUMENTS=${4:-""}
+
+JAR_FILENAME=#SERVICE_NAME.jar
+GC="-XX:+UseConcMarkSweepGC -XX:CMSInitiatingOccupancyFraction=75 -XX:+UseCMSInitiatingOccupancyOnly -XX:+HeapDumpOnOutOfMemoryError -XX:+CMSParallelRemarkEnabled  -XX:+ScavengeBeforeFullGC -XX:+CMSScavengeBeforeRemark"
+URANDOM="-Djava.security.egd=file:/dev/./urandom"
+LOGGING="-Dlog.level=INFO -Dmanagement.endpoints.web.exposure.include=* -Dlogging.file.path=#SERVICE_NAME.log"
+
+RUN_DIR=./run/trampoline
+PID_PATH_NAME=#SOURCE_LOCATION/${RUN_DIR}/#SERVICE_NAME.pid
+OPTIONS="$LOGGING $URANDOM $GC -Dserver.port=${PORT} ${VM_ARGUMENTS} -jar ./${JAR_FILENAME} ${APP_ARGUMENTS}"
+
+
+case $1 in
+    start)
+            if [[ ! -f ${PID_PATH_NAME} ]]; then
+                cd #SOURCE_LOCATION;
+                git pull;
+                mvn clean package -Doutput.directory=${RUN_DIR} -Djar.finalname=#SERVICE_NAME -Dmaven.test.skip=true -P shell;
+                cd ${RUN_DIR};
+                nohup java ${OPTIONS} /tmp 2>> /dev/null >> /dev/null &
+                            echo $! > ${PID_PATH_NAME}
+                echo "#SERVICE_NAME started ..."
+            else
+                echo "#SERVICE_NAME is already running ..."
+            fi
+        ;;
+    stop)
+        if [[ -f ${PID_PATH_NAME} ]]; then
+            PID=$(cat ${PID_PATH_NAME});
+            echo "#SERVICE_NAME stopping ..."
+            kill ${PID};
+            echo "#SERVICE_NAME stopped ..."
+            rm ${PID_PATH_NAME}
+        else
+            echo "#SERVICE_NAME is not running ..."
+        fi
+    ;;
+    restart)
+        if [[ -f ${PID_PATH_NAME} ]]; then
+            PID=$(cat ${PID_PATH_NAME});
+            echo "#SERVICE_NAME stopping ...";
+            kill ${PID};
+            echo "#SERVICE_NAME stopped ...";
+            rm ${PID_PATH_NAME}
+            echo "#SERVICE_NAME starting ..."
+            nohup java ${OPTIONS} /tmp 2>> /dev/null >> /dev/null &
+                        echo $! > ${PID_PATH_NAME}
+            echo "#SERVICE_NAME started ..."
+        else
+            echo "#SERVICE_NAME is not running ..."
+        fi
+    ;;
+esac

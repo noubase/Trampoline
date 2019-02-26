@@ -6,7 +6,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.ernest.applications.trampoline.entities.BuildTools;
 import org.ernest.applications.trampoline.entities.Ecosystem;
-import org.ernest.applications.trampoline.entities.Microservice;
+import org.ernest.applications.trampoline.entities.MicroService;
 import org.ernest.applications.trampoline.exceptions.*;
 import org.ernest.applications.trampoline.utils.ScriptContentsProvider;
 import org.ernest.applications.trampoline.utils.VMParser;
@@ -17,6 +17,11 @@ import org.springframework.stereotype.Component;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Component
@@ -38,6 +43,8 @@ public class FileManager {
 
     @Value("${trampoline.version}")
     private float currentVersion;
+
+    private final Map<String, Process> processes = new HashMap<>();
 
     public Ecosystem getEcosystem() throws CreatingSettingsFolderException, ReadingEcosystemException {
         checkIfFileExistsAndCreatedIfNeeded();
@@ -126,15 +133,28 @@ public class FileManager {
         }
     }
 
-    public void runScript(Microservice microservice, String mavenBinaryLocation, String mavenHomeLocation, String port, String vmArguments) throws RunningMicroserviceScriptException {
+    public void stopScript(String microServiceId) throws ShuttingDownInstanceException {
         try {
+            File shFile = Paths.get(getSettingsFolder(), microServiceId + ".sh").toFile();
+                if (shFile.exists())
+                new ProcessBuilder("sh", getSettingsFolder() + "/" + microServiceId + ".sh", "stop").start();
+            else
+                log.warn("sh file [{}] does not exists", shFile.getAbsolutePath());
+            processes.remove(microServiceId);
+        } catch (IOException e) {
+            throw new ShuttingDownInstanceException();
+        }
+    }
+
+    public void runScript(MicroService microservice, String mavenBinaryLocation, String mavenHomeLocation, String port, String vmArguments, String appArguments) throws RunningMicroserviceScriptException {
+        try {
+            String binaryLocation = (mavenBinaryLocation != null && mavenBinaryLocation.trim().length() > 0) ? mavenBinaryLocation : mavenHomeLocation + "/bin";
             if (System.getProperties().getProperty("os.name").contains("Windows")) {
                 String commands = FileUtils.readFileToString(new File(getSettingsFolder() + "/" + microservice.getId() + ".txt"));
                 commands = commands.replace("#port", port);
 
                 if (microservice.getBuildTool().equals(BuildTools.MAVEN)) {
-                    mavenBinaryLocation = (mavenBinaryLocation != null && mavenBinaryLocation.trim().length() > 0) ? mavenBinaryLocation : mavenHomeLocation + "/bin";
-                    commands = commands.replace("#mavenBinaryLocation", mavenBinaryLocation);
+                    commands = commands.replace("#mavenBinaryLocation", binaryLocation);
                     commands = commands.replace("#mavenHomeLocation", mavenHomeLocation);
                     commands = commands.replace("#vmArguments", vmArguments);
                 } else {
@@ -143,20 +163,28 @@ public class FileManager {
                 log.info("Starting [" + microservice.getId() + "] with following command [" + commands + "]");
                 Runtime.getRuntime().exec("cmd /c start cmd.exe /K \"" + commands + "\"");
             } else {
+                String scriptPath = getSettingsFolder() + "/" + microservice.getId() + ".sh";
                 if (microservice.getBuildTool().equals(BuildTools.MAVEN)) {
-                    mavenBinaryLocation = (mavenBinaryLocation != null && mavenBinaryLocation.trim().length() > 0) ? mavenBinaryLocation : mavenHomeLocation + "/bin";
-                    Process process = new ProcessBuilder("sh", getSettingsFolder() + "/" + microservice.getId() + ".sh", mavenHomeLocation, mavenBinaryLocation, port, vmArguments).start();
-
-//                    try {
-//                        byte[] bytes = IOUtils.toByteArray(process.getInputStream());
-//                        FileUtils.writeByteArrayToFile(new File("install.log"), bytes);
-//                    } catch (Exception e) {
-//                        log.warn("Failed [{}]", e);
-//                    }
-
+                    Optional.ofNullable(processes.get(microservice.getId()))
+                            .ifPresent(process -> {
+                                process.destroy();
+                                log.warn("Destroy previous process for [{}]", microservice.getId());
+                            });
+                    log.info("Script path: [{}]", scriptPath);
+                    log.info("Port: [{}]", port);
+                    log.info("VM Arguments: [{}]", vmArguments);
+                    log.info("App Arguments: [{}]", appArguments);
+                    ProcessBuilder builder = new ProcessBuilder("sh", scriptPath, "start", port, vmArguments, appArguments);
+                    Process process = builder.start();
+                    try {
+                        log.info("Output: \r\n[{}]", IOUtils.toString(process.getInputStream()));
+                    } catch (Exception e) {
+                        log.warn("Failed [{}]", e);
+                    }
+                    processes.put(microservice.getId(), process);
                 } else {
                     Runtime.getRuntime().exec("chmod 777 " + microservice.getPomLocation() + "//gradlew");
-                    new ProcessBuilder("sh", getSettingsFolder() + "/" + microservice.getId() + ".sh", port, VMParser.toUnixEnviromentVariables(vmArguments)).start();
+                    new ProcessBuilder("sh", scriptPath, port, VMParser.toUnixEnviromentVariables(vmArguments)).start();
                 }
             }
 
@@ -166,19 +194,22 @@ public class FileManager {
         }
     }
 
-    public void createScript(Microservice microservice) throws CreatingMicroserviceScriptException {
+    public void createScript(MicroService microservice) throws CreatingMicroserviceScriptException {
         log.info("Creating deployment script for microservice [{}]", microservice.getId());
         try {
-            if (System.getProperties().getProperty("os.name").contains("Windows")) {
+            boolean isWin = System.getProperties().getProperty("os.name").contains("Windows");
+            String ext = isWin ? ".txt" : ".sh";
+            String template;
+            if (isWin) {
                 try {
                     FileUtils.forceDelete(new File(getSettingsFolder() + "/" + microservice.getId() + ".txt"));
                 } catch (Exception e) {
                 }
 
                 if (microservice.getBuildTool().equals(BuildTools.MAVEN)) {
-                    FileUtils.writeStringToFile(new File(getSettingsFolder() + "/" + microservice.getId() + ".txt"), ScriptContentsProvider.getMavenWindows(microservice.getPomLocation()));
+                    template = ScriptContentsProvider.getMavenWindows(microservice.getPomLocation());
                 } else {
-                    FileUtils.writeStringToFile(new File(getSettingsFolder() + "/" + microservice.getId() + ".txt"), ScriptContentsProvider.getGradleWindows(microservice.getPomLocation()));
+                    template = ScriptContentsProvider.getGradleWindows(microservice.getPomLocation());
                 }
             } else {
                 try {
@@ -187,11 +218,13 @@ public class FileManager {
                 }
 
                 if (microservice.getBuildTool().equals(BuildTools.MAVEN)) {
-                    FileUtils.writeStringToFile(new File(getSettingsFolder() + "/" + microservice.getId() + ".sh"), ScriptContentsProvider.getMavenUnix(microservice.getPomLocation()));
+                    template = ScriptContentsProvider.getMavenUnix(microservice);
                 } else {
-                    FileUtils.writeStringToFile(new File(getSettingsFolder() + "/" + microservice.getId() + ".sh"), ScriptContentsProvider.getGradleUnix(microservice.getPomLocation()));
+                    template = ScriptContentsProvider.getGradleUnix(microservice.getPomLocation());
                 }
             }
+            Path path = Paths.get(getSettingsFolder(), microservice.getId() + ext);
+            FileUtils.writeStringToFile(path.toFile(), template);
         } catch (IOException e) {
             e.printStackTrace();
             throw new CreatingMicroserviceScriptException();

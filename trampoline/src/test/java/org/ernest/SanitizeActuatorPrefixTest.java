@@ -1,7 +1,7 @@
 package org.ernest;
 
 import org.ernest.applications.trampoline.entities.Instance;
-import org.ernest.applications.trampoline.entities.Microservice;
+import org.ernest.applications.trampoline.entities.MicroService;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -37,7 +37,7 @@ public class SanitizeActuatorPrefixTest {
         instance.setActuatorPrefix(prefixIntroduced);
         Assert.assertEquals(prefixExpected, instance.getActuatorPrefix());
 
-        Microservice microservice = new Microservice();
+        MicroService microservice = new MicroService();
         microservice.setActuatorPrefix(prefixIntroduced);
         Assert.assertEquals(prefixExpected, microservice.getActuatorPrefix());
     }

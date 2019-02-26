@@ -4,15 +4,18 @@ import org.ernest.applications.trampoline.collectors.TraceCollector;
 import org.ernest.applications.trampoline.entities.*;
 import org.ernest.applications.trampoline.entities.GitCredentials.SshSettings;
 import org.ernest.applications.trampoline.exceptions.*;
+import org.ernest.applications.trampoline.model.CreateMicroService;
+import org.ernest.applications.trampoline.model.UpdateMicroService;
 import org.ernest.applications.trampoline.utils.PortsChecker;
 import org.jboss.resteasy.client.ClientRequest;
-import org.jboss.resteasy.client.ClientResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -21,8 +24,12 @@ public class EcosystemManager {
 
     private static final Logger log = LoggerFactory.getLogger(TraceCollector.class);
 
+    private final FileManager fileManager;
+
     @Autowired
-    FileManager fileManager;
+    public EcosystemManager(FileManager fileManager) {
+        this.fileManager = fileManager;
+    }
 
     public Ecosystem getEcosystem() throws CreatingSettingsFolderException, ReadingEcosystemException {
         return fileManager.getEcosystem();
@@ -42,22 +49,16 @@ public class EcosystemManager {
         fileManager.saveEcosystem(ecosystem);
     }
 
-    public void setNewMicroservice(String name, String pomLocation, String defaultPort, String actuatorPrefix, String vmArguments, String buildTool, String gitLocation) throws CreatingSettingsFolderException, ReadingEcosystemException, CreatingMicroserviceScriptException, SavingEcosystemException {
+    public void setNewMicroService(CreateMicroService create) throws CreatingSettingsFolderException, ReadingEcosystemException, CreatingMicroserviceScriptException, SavingEcosystemException {
         Ecosystem ecosystem = fileManager.getEcosystem();
 
-        log.info("Creating new microservice name: [{}]", name);
-        Microservice microservice = new Microservice();
+        log.info("Creating new micro-service name: [{}]", create.getName());
+        MicroService microservice = new MicroService();
         microservice.setId(UUID.randomUUID().toString());
-        microservice.setName(name);
-        microservice.setPomLocation(pomLocation);
-        microservice.setDefaultPort(defaultPort);
-        microservice.setActuatorPrefix(actuatorPrefix);
-        microservice.setVmArguments(vmArguments);
-        microservice.setBuildTool(BuildTools.getByCode(buildTool));
-        microservice.setGitLocation(gitLocation);
+        BeanUtils.copyProperties(create, microservice);
         fileManager.createScript(microservice);
 
-        log.info("Saving microservice: [{}]", microservice.toString());
+        log.info("Saving micro-service: [{}]", microservice.toString());
         ecosystem.getMicroservices().add(microservice);
         fileManager.saveEcosystem(ecosystem);
     }
@@ -90,15 +91,15 @@ public class EcosystemManager {
         fileManager.saveEcosystem(ecosystem);
     }
 
-    public void startInstance(String id, String port, String vmArguments, Integer startingDelay) throws CreatingSettingsFolderException, ReadingEcosystemException, RunningMicroserviceScriptException, SavingEcosystemException, InterruptedException {
+    public void startInstance(String id, String port, String vmArguments, String appArguments, Integer startingDelay) throws CreatingSettingsFolderException, ReadingEcosystemException, RunningMicroserviceScriptException, SavingEcosystemException, InterruptedException {
         Ecosystem ecosystem = fileManager.getEcosystem();
 
         log.info("Launching script to start instances id: [{}]", id);
-        Microservice microservice = ecosystem.getMicroservices().stream().filter(m -> m.getId().equals(id)).findAny()
+        MicroService microservice = ecosystem.getMicroservices().stream().filter(m -> m.getId().equals(id)).findAny()
                 .orElseThrow(() -> new IllegalArgumentException(String.format("Service with [%s] not found", id)));
         Thread.sleep(startingDelay * 1000);
         log.info("Starting instances id: [{}] port: [{}] vmArguments: [{}] startingDelay: [{}]", id, port, vmArguments, startingDelay);
-        fileManager.runScript(microservice, ecosystem.getMavenBinaryLocation(), ecosystem.getMavenHomeLocation(), port, vmArguments);
+        fileManager.runScript(microservice, ecosystem.getMavenBinaryLocation(), ecosystem.getMavenHomeLocation(), port, vmArguments, appArguments);
 
         Instance instance = new Instance();
         instance.setId(UUID.randomUUID().toString());
@@ -113,23 +114,14 @@ public class EcosystemManager {
         fileManager.saveEcosystem(ecosystem);
     }
 
-    public void killInstance(String id) throws CreatingSettingsFolderException, ReadingEcosystemException, SavingEcosystemException, ShuttingDownInstanceException {
+    public void killInstance(String id, boolean clear) throws CreatingSettingsFolderException, ReadingEcosystemException, SavingEcosystemException, ShuttingDownInstanceException {
         log.info("Removing instance id: [{}]", id);
 
         Ecosystem ecosystem = fileManager.getEcosystem();
         Instance instance = ecosystem.getInstances().stream().filter(i -> i.getId().equals(id)).collect(Collectors.toList()).get(0);
-
-        if (instance.getIp().equals("127.0.0.1")) {
-            log.info("Stopping instance id: [{}]", id);
-            try {
-                ClientResponse<String> response = new ClientRequest(instance.buildActuatorUrl() + "/shutdown").post(String.class);
-                log.info("[{}] instance shutdown response [{}]", instance.getId(), response.getResponseStatus());
-            } catch (Exception e) {
-                log.error("Stopping instance id: [{}]", id);
-            }
-        }
-
-        ecosystem.setInstances(ecosystem.getInstances().stream().filter(i -> !i.getId().equals(id)).collect(Collectors.toList()));
+        fileManager.stopScript(instance.getMicroserviceId());
+        if (clear)
+            ecosystem.removeInstance(id);
         fileManager.saveEcosystem(ecosystem);
     }
 
@@ -159,20 +151,20 @@ public class EcosystemManager {
 
         for (int index = 0; index < group.getMicroservicesIds().size(); index++) {
             int microserviceIndex = index;
-            Microservice microservice = ecosystem.getMicroservices().stream().filter(m -> m.getId().equals(group.getMicroservicesIds().get(microserviceIndex))).findAny().get();
-            prepareMicroservice(microservice, group.getMicroservicesDelays().get(microserviceIndex));
+            MicroService microservice = ecosystem.getMicroservices().stream().filter(m -> m.getId().equals(group.getMicroservicesIds().get(microserviceIndex))).findAny().get();
+            prepareMicroService(microservice, group.getMicroservicesDelays().get(microserviceIndex));
         }
     }
 
-    private void prepareMicroservice(Microservice microservice, Integer startingDelay) throws InterruptedException {
-        int port = Integer.parseInt(microservice.getDefaultPort());
+    private void prepareMicroService(MicroService microservice, Integer startingDelay) throws InterruptedException {
+        int port = microservice.getDefaultPort();
         boolean instanceStarted = false;
         List<Instance> instances = fileManager.getEcosystem().getInstances();
 
         while (!instanceStarted) {
             final int portToBeLaunched = port;
             if (PortsChecker.available(portToBeLaunched) && !instances.stream().anyMatch(i -> i.getPort().equals(String.valueOf(portToBeLaunched)))) {
-                startInstance(microservice.getId(), String.valueOf(port), microservice.getVmArguments(), startingDelay);
+                startInstance(microservice.getId(), String.valueOf(port), microservice.getVmArguments(), microservice.getAppArguments(), startingDelay);
                 instanceStarted = true;
             } else {
                 port++;
@@ -180,17 +172,12 @@ public class EcosystemManager {
         }
     }
 
-    public void updateMicroservice(String id, String pomLocation, String defaultPort, String actuatorPrefix, String vmArguments, String gitLocation) {
-        log.info("Updating microservice id: [{}]", id);
+    public void updateMicroService(String id, UpdateMicroService update) {
+        log.info("Updating micro-service id: [{}]", id);
         Ecosystem ecosystem = fileManager.getEcosystem();
 
-        Microservice microservice = ecosystem.getMicroservices().stream().filter(m -> m.getId().equals(id)).findAny().get();
-        microservice.setPomLocation(pomLocation);
-        microservice.setDefaultPort(defaultPort);
-        microservice.setActuatorPrefix(actuatorPrefix);
-        microservice.setVmArguments(vmArguments);
-        microservice.setGitLocation(gitLocation);
-
+        MicroService microservice = ecosystem.getMicroservices().stream().filter(m -> m.getId().equals(id)).findAny().get();
+        BeanUtils.copyProperties(update, microservice);
         fileManager.createScript(microservice);
 
         log.info("Saving microservice: [{}]", microservice.toString());
@@ -200,9 +187,14 @@ public class EcosystemManager {
     public void restartInstance(String instanceId) throws InterruptedException {
         log.info("Restarting instance id: [{}]", instanceId);
         Ecosystem ecosystem = fileManager.getEcosystem();
-        Instance instance = ecosystem.getInstances().stream().filter(i -> i.getId().equals(instanceId)).findFirst().get();
-        killInstance(instance.getId());
-        startInstance(instance.getMicroserviceId(), instance.getPort(), instance.getVmArguments(), 0);
+        Optional<Instance> opt = ecosystem.getInstances().stream().filter(i -> i.getId().equals(instanceId)).findFirst();
+        if (!opt.isPresent()) {
+            log.warn("Instance with [{}] not found", instanceId);
+            return;
+        }
+        Instance instance = opt.get();
+        killInstance(instance.getId(), false);
+        startInstance(instance.getMicroserviceId(), instance.getPort(), instance.getVmArguments(), instance.getAppArguments(), 0);
     }
 
     public void saveGitHttpsCred(String user, String pass) {
