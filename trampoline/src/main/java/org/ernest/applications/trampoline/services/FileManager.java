@@ -137,7 +137,7 @@ public class FileManager {
         try {
             File shFile = Paths.get(getSettingsFolder(), microServiceId + ".sh").toFile();
                 if (shFile.exists())
-                new ProcessBuilder("sh", getSettingsFolder() + "/" + microServiceId + ".sh", "stop").start();
+                new ProcessBuilder("bash", getSettingsFolder() + "/" + microServiceId + ".sh", "stop").start();
             else
                 log.warn("sh file [{}] does not exists", shFile.getAbsolutePath());
             processes.remove(microServiceId);
@@ -174,7 +174,7 @@ public class FileManager {
                     log.info("Port: [{}]", port);
                     log.info("VM Arguments: [{}]", vmArguments);
                     log.info("App Arguments: [{}]", appArguments);
-                    ProcessBuilder builder = new ProcessBuilder("sh", scriptPath, "start", port, vmArguments, appArguments);
+                    ProcessBuilder builder = new ProcessBuilder("bash", scriptPath, "start", port, vmArguments, appArguments);
                     Process process = builder.start();
                     try {
                         log.info("Output: \r\n[{}]", IOUtils.toString(process.getInputStream()));
@@ -184,7 +184,7 @@ public class FileManager {
                     processes.put(microservice.getId(), process);
                 } else {
                     Runtime.getRuntime().exec("chmod 777 " + microservice.getPomLocation() + "//gradlew");
-                    new ProcessBuilder("sh", scriptPath, port, VMParser.toUnixEnviromentVariables(vmArguments)).start();
+                    new ProcessBuilder("bash", scriptPath, port, VMParser.toUnixEnviromentVariables(vmArguments)).start();
                 }
             }
 
